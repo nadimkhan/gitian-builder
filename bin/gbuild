@@ -36,11 +36,11 @@ def info(str)
 end
 
 def copy_sdk
-  system('cp /shared/cache/MacOSX10.9.sdk.tar.gz /shared/gitian-builder/inputs/')
+  system("cp #{cache_dir}/MacOSX10.9.sdk.tar.gz #{inputs_dir} > /dev/null 2>&1")
 end
 
 def build_one_configuration(suite, arch, build_desc)
-  FileUtils.rm_f("var/build.log")
+  FileUtils.rm_f("#{var_dir}/build.log")
 
   bits = @bitness[arch] or raise "unknown architecture ${arch}"
 
@@ -55,11 +55,6 @@ def build_one_configuration(suite, arch, build_desc)
   system "stop-target"
 
   sleep 1
-
-  unless @options[:skip_image]
-    info "Making a new image copy"
-    system! "make-clean-vm --suite #{suite} --arch #{arch}"
-  end
 
   info "Starting target"
   system! "start-target #{bits} #{suitearch}&"
@@ -76,40 +71,36 @@ def build_one_configuration(suite, arch, build_desc)
 
   system! "on-target true"
 
-  system! "on-target -u root tee -a /etc/sudoers.d/#{ENV['DISTRO'] || 'ubuntu'} > /dev/null << EOF
-%#{ENV['DISTRO'] || 'ubuntu'} ALL=(ALL) NOPASSWD: ALL
-EOF" if build_desc["sudo"] and @options[:allow_sudo]
-
   info "Preparing build environment"
   system! "on-target setarch #{@arches[arch]} bash < target-bin/init-build.sh"
 
   build_desc["files"].each do |filename|
     filename = sanitize(filename, "files section")
-    system! "copy-to-target #{@quiet_flag} inputs/#{filename} /home/ubuntu/build/"
+    system! "copy-to-target #{@quiet_flag} #{inputs_dir}/#{filename} $HOME/build/"
   end
 
   if build_desc["enable_cache"]
-    if File.directory?("cache/#{build_desc["name"]}")
-      system! "copy-to-target #{@quiet_flag} #{cache_dir}/#{build_desc["name"]}/ /home/ubuntu/cache/"
+    if File.directory?("#{cache_dir}/#{build_desc["name"]}")
+      system! "copy-to-target #{@quiet_flag} #{cache_dir}/#{build_desc["name"]}/ $HOME/cache/"
     end
 
-    if File.directory?("cache/common")
-      system! "copy-to-target #{@quiet_flag} #{cache_dir}/common/ /home/ubuntu/cache/"
+    if File.directory?("#{cache_dir}/common")
+      system! "copy-to-target #{@quiet_flag} #{cache_dir}/common/ $HOME/cache/"
     end
   end
 
-  info "Installing additional packages (log in var/install.log)"
+  info "Installing additional packages (log in #{var_dir}/install.log)"
   system! "on-target sudo apt-get --no-install-recommends -y install #{build_desc["packages"].join(" ")}"
 
   info "Creating package manifest"
-  system! "on-target sudo /shared/gitian-builder/target-bin/grab-packages.sh > var/base-#{suitearch}.manifest"
+  system! "on-target sudo /shared/gitian-builder/target-bin/grab-packages.sh > #{var_dir}/base-#{suitearch}.manifest"
 
-  info "Creating build script (var/build-script)"
+  info "Creating build script (#{var_dir}/build-script)"
 
-  File.open("var/build-script", "w") do |script|
+  File.open("#{var_dir}/build-script", "w") do |script|
     script.puts "#!/bin/bash"
     script.puts "set -e"
-    script.puts "pushd /home/ubuntu"
+    script.puts "pushd $HOME"
     script.puts "export LANG='en_US.UTF-8'"
     script.puts "export LC_ALL='en_US.UTF-8'"
     script.puts "umask 002"
@@ -126,10 +117,10 @@ EOF" if build_desc["sudo"] and @options[:allow_sudo]
     build_desc["remotes"].each do |remote|
       dir = sanitize(remote["dir"], remote["dir"])
 
-      author_date = `cd inputs/#{dir} && git log --format=@%at -1 | date +"%F %T" -u -f -`.strip
+      author_date = `cd #{inputs_dir}/#{dir} && git log --format=@%at -1 | date +"%F %T" -u -f -`.strip
       raise "error looking up author date in #{dir}" unless $?.exitstatus == 0
 
-      system! "copy-to-target #{@quiet_flag} inputs/#{dir} /home/ubuntu/build/"
+      system! "copy-to-target #{@quiet_flag} #{inputs_dir}/#{dir} $HOME/build/"
       script.puts "(cd build/#{dir} && git reset -q --hard && git clean -q -f -d)"
     end
     script.puts
@@ -144,8 +135,8 @@ EOF" if build_desc["sudo"] and @options[:allow_sudo]
     script.puts "popd"
   end
 
-  info "Running build script (log in var/build.log)"
-  system! "on-target setarch #{@arches[arch]} bash -x < var/build-script"
+  info "Running build script (log in #{var_dir}/build.log)"
+  system! "on-target setarch #{@arches[arch]} bash -x < #{var_dir}/build-script"
 end
 
 ################################
@@ -153,15 +144,6 @@ end
 OptionParser.new do |opts|
   opts.banner = "Usage: build [options] <build-description>.yml"
 
-  opts.on("--allow-sudo", "override SECURITY on the target VM and allow the use of sudo with no password for the default user") do |v|
-    @options[:allow_sudo] = v
-  end
-  opts.on("-i", "--skip-image", "reuse current target image") do |v|
-    @options[:skip_image] = v
-  end
-  opts.on("--upgrade", "upgrade guest with latest packages") do |v|
-    @options[:upgrade] = v
-  end
   opts.on("-q", "--quiet", "be quiet") do |v|
     @options[:quiet] = v
   end
@@ -197,11 +179,11 @@ build_desc = YAML.load_file(build_desc_file)
 
 in_sums = []
 
-build_dir = 'build'
+build_dir = '/shared/gitian-builder/build'
 result_dir = '/shared/result'
 cache_dir = '/shared/cache'
-inputs_dir = 'inputs'
-var_dir = 'var'
+inputs_dir = '/shared/gitian-builder/inputs'
+var_dir = '/shared/gitian-builder/var'
 enable_cache = build_desc["enable_cache"]
 
 FileUtils.rm_rf(build_dir)
@@ -262,14 +244,14 @@ build_desc["remotes"].each do |remote|
     remote["url"] = urls[remote["dir"]]
   end
   dir = sanitize(remote["dir"], remote["dir"])
-  unless File.exist?("inputs/#{dir}")
-      system!("git init inputs/#{dir}")
+  unless File.exist?("#{inputs_dir}/#{dir}")
+      system!("git init #{inputs_dir}/#{dir}")
   end
-  system!("cd inputs/#{dir} && git fetch --update-head-ok #{sanitize_path(remote["url"], remote["url"])} +refs/tags/*:refs/tags/* +refs/heads/*:refs/heads/*")
+  system!("cd #{inputs_dir}/#{dir} && git fetch --update-head-ok #{sanitize_path(remote["url"], remote["url"])} +refs/tags/*:refs/tags/* +refs/heads/*:refs/heads/*")
   commit = sanitize(remote["commit"], remote["commit"])
-  commit = `cd inputs/#{dir} && git log --format=%H -1 #{commit}`.strip
+  commit = `cd #{inputs_dir}/#{dir} && git log --format=%H -1 #{commit}`.strip
   raise "error looking up commit for tag #{remote["commit"]}" unless $?.exitstatus == 0
-  system!("cd inputs/#{dir} && git checkout -q #{commit}")
+  system!("cd #{inputs_dir}/#{dir} && git checkout -q #{commit}")
   in_sums << "git:#{commit} #{dir}"
 end
 
@@ -285,14 +267,14 @@ suites.each do |suite|
     build_one_configuration(suite, arch, build_desc)
 
     info "Grabbing results from target"
-    system! "copy-from-target #{@quiet_flag} /home/ubuntu/out #{build_dir}"
+    system! "copy-from-target #{@quiet_flag} $HOME/out #{build_dir}"
 
     if enable_cache && !@options[:cache_ro]
       info "Grabbing cache from target"
-      system! "copy-from-target #{@quiet_flag} /home/ubuntu/cache/#{package_name}/ #{cache_dir}"
-      system! "copy-from-target #{@quiet_flag} /home/ubuntu/cache/common/ #{cache_dir}"
+      system! "copy-from-target #{@quiet_flag} $HOME/cache/#{package_name}/ #{cache_dir}"
+      system! "copy-from-target #{@quiet_flag} $HOME/cache/common/ #{cache_dir}"
     end
-    base_manifest = File.read("var/base-#{suite}-#{arch}.manifest")
+    base_manifest = File.read("#{var_dir}/base-#{suite}-#{arch}.manifest")
     base_manifests["#{suite}-#{arch}"] = base_manifest
   end
 end
@@ -354,5 +336,5 @@ File.open(File.join(result_dir, result_file), "w") do |io|
 end
 
 system!("cd #{result_dir} && sha256sum #{result_file}") unless @options[:quiet]
-
+system("cp #{out_dir}/bitcoin-*.tar.gz #{out_dir}/src/bitcoin-*.tar.gz #{result_dir}")
 info "Done."
