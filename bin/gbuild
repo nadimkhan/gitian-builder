@@ -36,11 +36,12 @@ def info(str)
 end
 
 def copy_sdk
-  system("cp #{cache_dir}/MacOSX10.9.sdk.tar.gz #{inputs_dir} > /dev/null 2>&1")
+  mac_sdk = "#{@cache_dir}/MacOSX10.9.sdk.tar.gz"
+  system("cp #{mac_sdk} #{@inputs_dir}") if File.exists?(mac_sdk)
 end
 
 def build_one_configuration(suite, arch, build_desc)
-  FileUtils.rm_f("#{var_dir}/build.log")
+  FileUtils.rm_f("#{@var_dir}/build.log")
 
   bits = @bitness[arch] or raise "unknown architecture ${arch}"
 
@@ -76,28 +77,28 @@ def build_one_configuration(suite, arch, build_desc)
 
   build_desc["files"].each do |filename|
     filename = sanitize(filename, "files section")
-    system! "copy-to-target #{@quiet_flag} #{inputs_dir}/#{filename} $HOME/build/"
+    system! "copy-to-target #{@quiet_flag} #{@inputs_dir}/#{filename} $HOME/build/"
   end
 
   if build_desc["enable_cache"]
-    if File.directory?("#{cache_dir}/#{build_desc["name"]}")
-      system! "copy-to-target #{@quiet_flag} #{cache_dir}/#{build_desc["name"]}/ $HOME/cache/"
+    if File.directory?("#{@cache_dir}/#{build_desc["name"]}")
+      system! "copy-to-target #{@quiet_flag} #{@cache_dir}/#{build_desc["name"]}/ $HOME/cache/"
     end
 
-    if File.directory?("#{cache_dir}/common")
-      system! "copy-to-target #{@quiet_flag} #{cache_dir}/common/ $HOME/cache/"
+    if File.directory?("#{@cache_dir}/common")
+      system! "copy-to-target #{@quiet_flag} #{@cache_dir}/common/ $HOME/cache/"
     end
   end
 
-  info "Installing additional packages (log in #{var_dir}/install.log)"
+  info "Installing additional packages (log in #{@var_dir}/install.log)"
   system! "on-target sudo apt-get --no-install-recommends -y install #{build_desc["packages"].join(" ")}"
 
   info "Creating package manifest"
-  system! "on-target sudo /shared/gitian-builder/target-bin/grab-packages.sh > #{var_dir}/base-#{suitearch}.manifest"
+  system! "on-target sudo /shared/gitian-builder/target-bin/grab-packages.sh > #{@var_dir}/base-#{suitearch}.manifest"
 
-  info "Creating build script (#{var_dir}/build-script)"
+  info "Creating build script (#{@var_dir}/build-script)"
 
-  File.open("#{var_dir}/build-script", "w") do |script|
+  File.open("#{@var_dir}/build-script", "w") do |script|
     script.puts "#!/bin/bash"
     script.puts "set -e"
     script.puts "pushd $HOME"
@@ -117,10 +118,10 @@ def build_one_configuration(suite, arch, build_desc)
     build_desc["remotes"].each do |remote|
       dir = sanitize(remote["dir"], remote["dir"])
 
-      author_date = `cd #{inputs_dir}/#{dir} && git log --format=@%at -1 | date +"%F %T" -u -f -`.strip
+      author_date = `cd #{@inputs_dir}/#{dir} && git log --format=@%at -1 | date +"%F %T" -u -f -`.strip
       raise "error looking up author date in #{dir}" unless $?.exitstatus == 0
 
-      system! "copy-to-target #{@quiet_flag} #{inputs_dir}/#{dir} $HOME/build/"
+      system! "copy-to-target #{@quiet_flag} #{@inputs_dir}/#{dir} $HOME/build/"
       script.puts "(cd build/#{dir} && git reset -q --hard && git clean -q -f -d)"
     end
     script.puts
@@ -135,8 +136,8 @@ def build_one_configuration(suite, arch, build_desc)
     script.puts "popd"
   end
 
-  info "Running build script (log in #{var_dir}/build.log)"
-  system! "on-target setarch #{@arches[arch]} bash -x < #{var_dir}/build-script"
+  info "Running build script (log in #{@var_dir}/build.log)"
+  system! "on-target setarch #{@arches[arch]} bash -x < #{@var_dir}/build-script"
 end
 
 ################################
@@ -179,26 +180,26 @@ build_desc = YAML.load_file(build_desc_file)
 
 in_sums = []
 
-build_dir = '/shared/gitian-builder/build'
-result_dir = '/shared/result'
-cache_dir = '/shared/cache'
-inputs_dir = '/shared/gitian-builder/inputs'
-var_dir = '/shared/gitian-builder/var'
+@build_dir = '/shared/gitian-builder/build'
+@result_dir = '/shared/result'
+@cache_dir = '/shared/cache'
+@inputs_dir = '/shared/gitian-builder/inputs'
+@var_dir = '/shared/gitian-builder/var'
 enable_cache = build_desc["enable_cache"]
 
-FileUtils.rm_rf(build_dir)
-FileUtils.mkdir(build_dir)
-FileUtils.mkdir_p(result_dir)
-FileUtils.mkdir_p(var_dir)
-FileUtils.mkdir_p(inputs_dir)
+FileUtils.rm_rf(@build_dir)
+FileUtils.mkdir(@build_dir)
+FileUtils.mkdir_p(@result_dir)
+FileUtils.mkdir_p(@var_dir)
+FileUtils.mkdir_p(@inputs_dir)
 copy_sdk
 
 package_name = build_desc["name"] or raise "must supply name"
 package_name = sanitize(package_name, "package name")
 
 if enable_cache
-  FileUtils.mkdir_p(File.join(cache_dir, "common"))
-  FileUtils.mkdir_p(File.join(cache_dir, package_name))
+  FileUtils.mkdir_p(File.join(@cache_dir, "common"))
+  FileUtils.mkdir_p(File.join(@cache_dir, package_name))
 end
 
 distro = build_desc["distro"] || "ubuntu"
@@ -244,14 +245,14 @@ build_desc["remotes"].each do |remote|
     remote["url"] = urls[remote["dir"]]
   end
   dir = sanitize(remote["dir"], remote["dir"])
-  unless File.exist?("#{inputs_dir}/#{dir}")
-      system!("git init #{inputs_dir}/#{dir}")
+  unless File.exist?("#{@inputs_dir}/#{dir}")
+      system!("git init #{@inputs_dir}/#{dir}")
   end
-  system!("cd #{inputs_dir}/#{dir} && git fetch --update-head-ok #{sanitize_path(remote["url"], remote["url"])} +refs/tags/*:refs/tags/* +refs/heads/*:refs/heads/*")
+  system!("cd #{@inputs_dir}/#{dir} && git fetch --update-head-ok #{sanitize_path(remote["url"], remote["url"])} +refs/tags/*:refs/tags/* +refs/heads/*:refs/heads/*")
   commit = sanitize(remote["commit"], remote["commit"])
-  commit = `cd #{inputs_dir}/#{dir} && git log --format=%H -1 #{commit}`.strip
+  commit = `cd #{@inputs_dir}/#{dir} && git log --format=%H -1 #{commit}`.strip
   raise "error looking up commit for tag #{remote["commit"]}" unless $?.exitstatus == 0
-  system!("cd #{inputs_dir}/#{dir} && git checkout -q #{commit}")
+  system!("cd #{@inputs_dir}/#{dir} && git checkout -q #{commit}")
   in_sums << "git:#{commit} #{dir}"
 end
 
@@ -267,49 +268,49 @@ suites.each do |suite|
     build_one_configuration(suite, arch, build_desc)
 
     info "Grabbing results from target"
-    system! "copy-from-target #{@quiet_flag} $HOME/out #{build_dir}"
+    system! "copy-from-target #{@quiet_flag} $HOME/out #{@build_dir}"
 
     if enable_cache && !@options[:cache_ro]
       info "Grabbing cache from target"
-      system! "copy-from-target #{@quiet_flag} $HOME/cache/#{package_name}/ #{cache_dir}"
-      system! "copy-from-target #{@quiet_flag} $HOME/cache/common/ #{cache_dir}"
+      system! "copy-from-target #{@quiet_flag} $HOME/cache/#{package_name}/ #{@cache_dir}"
+      system! "copy-from-target #{@quiet_flag} $HOME/cache/common/ #{@cache_dir}"
     end
-    base_manifest = File.read("#{var_dir}/base-#{suite}-#{arch}.manifest")
+    base_manifest = File.read("#{@var_dir}/base-#{suite}-#{arch}.manifest")
     base_manifests["#{suite}-#{arch}"] = base_manifest
   end
 end
 
-out_dir = File.join(build_dir, "out")
+@out_dir = File.join(@build_dir, "out")
 out_sums = {}
-cache_common_dir = File.join(cache_dir, "common")
-cache_package_dir = File.join(cache_dir, "#{package_name}")
+@cache_common_dir = File.join(@cache_dir, "common")
+@cache_package_dir = File.join(@cache_dir, "#{package_name}")
 cache_common_sums = {}
 cache_package_sums = {}
 
 info "Generating report"
-Dir.glob(File.join(out_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
+Dir.glob(File.join(@out_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
   next if File.directory?(file_in_out)
-  file = file_in_out.sub(out_dir + File::SEPARATOR, '')
+  file = file_in_out.sub(@out_dir + File::SEPARATOR, '')
   file = sanitize_path(file, file_in_out)
-  out_sums[file] = `cd #{out_dir} && sha256sum #{file}`
+  out_sums[file] = `cd #{@out_dir} && sha256sum #{file}`
   raise "failed to sum #{file}" unless $? == 0
   puts out_sums[file] unless @options[:quiet]
 end
 
 if enable_cache
-  Dir.glob(File.join(cache_common_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
+  Dir.glob(File.join(@cache_common_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
     next if File.directory?(file_in_out)
-    file = file_in_out.sub(cache_common_dir + File::SEPARATOR, '')
+    file = file_in_out.sub(@cache_common_dir + File::SEPARATOR, '')
     file = sanitize_path(file, file_in_out)
-    cache_common_sums[file] = `cd #{cache_common_dir} && sha256sum #{file}`
+    cache_common_sums[file] = `cd #{@cache_common_dir} && sha256sum #{file}`
     raise "failed to sum #{file}" unless $? == 0
   end
 
-  Dir.glob(File.join(cache_package_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
+  Dir.glob(File.join(@cache_package_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file_in_out|
     next if File.directory?(file_in_out)
-    file = file_in_out.sub(cache_package_dir + File::SEPARATOR, '')
+    file = file_in_out.sub(@cache_package_dir + File::SEPARATOR, '')
     file = sanitize_path(file, file_in_out)
-    cache_package_sums[file] = `cd #{cache_package_dir} && sha256sum #{file}`
+    cache_package_sums[file] = `cd #{@cache_package_dir} && sha256sum #{file}`
     raise "failed to sum #{file}" unless $? == 0
   end
 end
@@ -331,10 +332,10 @@ report = YAML::Omap[
 ]
 
 result_file = "#{package_name}-res.yml"
-File.open(File.join(result_dir, result_file), "w") do |io|
+File.open(File.join(@result_dir, result_file), "w") do |io|
   io.write report.to_yaml
 end
 
-system!("cd #{result_dir} && sha256sum #{result_file}") unless @options[:quiet]
-system("cp #{out_dir}/bitcoin-*.tar.gz #{out_dir}/src/bitcoin-*.tar.gz #{result_dir}")
+system!("cd #{@result_dir} && sha256sum #{result_file}") unless @options[:quiet]
+system("cp #{@out_dir}/bitcoin-*.tar.gz #{@out_dir}/src/bitcoin-*.tar.gz #{@result_dir}")
 info "Done."
