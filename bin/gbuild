@@ -45,32 +45,7 @@ def build_one_configuration(suite, arch, build_desc)
 
   bits = @bitness[arch] or raise "unknown architecture ${arch}"
 
-  if ENV["USE_LXC"]
-      ENV["LXC_ARCH"] = arch
-      ENV["LXC_SUITE"] = suite
-  end
-
   suitearch = "#{suite}-#{arch}"
-
-  info "Stopping target if it is up"
-  system "stop-target"
-
-  sleep 1
-
-  info "Starting target"
-  system! "start-target #{bits} #{suitearch}&"
-
-  $stdout.write "Checking if target is up"
-
-  (1..30).each do
-    system "on-target true 2> /dev/null" and break
-    sleep 2
-    $stdout.write '.'
-  end
-
-  info ''
-
-  system! "on-target true"
 
   info "Preparing build environment"
   system! "on-target setarch #{@arches[arch]} bash < target-bin/init-build.sh"
@@ -237,19 +212,8 @@ if @options[:url]
 end
 
 build_desc["remotes"].each do |remote|
-  if !remote["commit"]
-    remote["commit"] = commits[remote["dir"]]
-    raise "must specify a commit for directory #{remote["dir"]}" unless remote["commit"]
-  end
-  if urls[remote["dir"]]
-    remote["url"] = urls[remote["dir"]]
-  end
   dir = sanitize(remote["dir"], remote["dir"])
-  unless File.exist?("#{@inputs_dir}/#{dir}")
-      system!("git init #{@inputs_dir}/#{dir}")
-  end
-  system!("cd #{@inputs_dir}/#{dir} && git fetch --update-head-ok #{sanitize_path(remote["url"], remote["url"])} +refs/tags/*:refs/tags/* +refs/heads/*:refs/heads/*")
-  commit = sanitize(remote["commit"], remote["commit"])
+  commit = sanitize(commits[remote["dir"]], commits[remote["dir"]])
   commit = `cd #{@inputs_dir}/#{dir} && git log --format=%H -1 #{commit}`.strip
   raise "error looking up commit for tag #{remote["commit"]}" unless $?.exitstatus == 0
   system!("cd #{@inputs_dir}/#{dir} && git checkout -q #{commit}")
