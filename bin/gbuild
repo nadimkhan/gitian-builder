@@ -40,7 +40,14 @@ def copy_sdk
   system("cp #{mac_sdk} #{@inputs_dir}") if File.exists?(mac_sdk)
 end
 
+def clean_up
+  [build, cache, wrapped, out, install].each do |dir|
+    system("rm -fr $HOME/#{dir}")
+  end
+end
+
 def build_one_configuration(suite, arch, build_desc)
+  clean_up
   FileUtils.rm_f("#{@var_dir}/build.log")
 
   bits = @bitness[arch] or raise "unknown architecture ${arch}"
@@ -300,6 +307,7 @@ File.open(File.join(@result_dir, result_file), "w") do |io|
   io.write report.to_yaml
 end
 
+clean_up
 system!("cd #{@result_dir} && sha256sum #{result_file}") unless @options[:quiet]
 system("cp #{@out_dir}/bitcoin-*.tar.gz #{@out_dir}/src/bitcoin-*.tar.gz #{@result_dir}")
 info "Done."
