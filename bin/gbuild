@@ -41,7 +41,7 @@ def copy_sdk
 end
 
 def clean_up
-  [build, cache, wrapped, out, install].each do |dir|
+  ['build', 'cache', 'wrapped', 'out', 'install'].each do |dir|
     system("rm -fr $HOME/#{dir}")
   end
 end
