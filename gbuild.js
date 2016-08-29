@@ -57,7 +57,6 @@ emitter.on('setup complete', function(err, config) {
 });
 
 var processConfig = function(config, cb) {
-
   cb(config);
 }
 
@@ -65,19 +64,19 @@ emitter.on('build complete', function(err, res) {
 });
 
 var build = function(config, cb) {
-  var script = '#!/bin/bash \
-  set -e \
-  pushd ' + buildDir + ' \
-  export LANG="en_US.UTF-8" \
-  export LC_ALL="en_US.UTF-8" \
-  umask 002 \
-  export OUTDIR=' + buildDir + '/out \
-  GBUILD_BITS=' + bits + ' \
-  GBUILD_CACHE_ENABLED=1 \
-  GBUILD_PACKAGE_CACHE=' + buildDir + '/cache/' + config.name + ' \
-  GBUILD_COMMON_CACHE=' + buildDir + '/cache/common' + ' \
-  MAKEOPTS=(-j2) \
-  REFERENCE_DATETIME=' + config.
+  var script = '#!/bin/bash \n\
+  set -e \n\
+  pushd ' + buildDir + ' \n\
+  export LANG="en_US.UTF-8" \n\
+  export LC_ALL="en_US.UTF-8" \n\
+  umask 002 \n\
+  export OUTDIR=' + buildDir + '/out \n\
+  GBUILD_BITS=' + bits + ' \n\
+  GBUILD_CACHE_ENABLED=1 \n\
+  GBUILD_PACKAGE_CACHE=' + buildDir + '/cache/' + config.name + ' \n\
+  GBUILD_COMMON_CACHE=' + buildDir + '/cache/common' + ' \n\
+  MAKEOPTS=(-j2) \n\
+  REFERENCE_DATETIME=' + config.reference_datetime;
 }
 
 var loadConfig = function(cb) {
