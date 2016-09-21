@@ -5,7 +5,7 @@ require 'yaml'
 require 'fileutils'
 require 'pathname'
 
-@options = {:num_procs => 8, :memory => 8000}
+@options = {:num_procs => 2, :memory => 2200}
 
 @bitness = {
   'i386' => 32,

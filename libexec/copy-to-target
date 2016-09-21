@@ -49,7 +49,7 @@ fi
 if [ -z "$USE_LXC" ]; then
     src="${1%/}"  # remove trailing / which triggers special rsync behaviour
     #rsync --checksum -a $QUIET_FLAG -e "ssh -oConnectTimeout=30 -oNoHostAuthenticationForLocalhost=yes -i ${GITIAN_BASE:-.}/var/id_rsa -p $VM_SSH_PORT" "${src}" "$TUSER@localhost:$2"
-    rsync --checksum -O --no-perm $QUIET_FLAG "${src}" "$2"
+    rsync --checksum -O --no-perms $QUIET_FLAG "${src}" "$2"
 else
     config-lxc
     tar -C `dirname "$1"` -cf - `basename "$1"` | sudo $LXC_EXECUTE -n gitian -f var/lxc.config -- sudo -i -u $TUSER tar -C "$2" -xf -
