@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-#pushd ./bitcoin
-export SIGNER=kleetus
-export VERSION=v0.12.1-bitcore-2
+#pushd ./saviour
+export SIGNER=nadimkhan
+export VERSION=v1.0.0.1
 #git fetch
 #git checkout ${VERSION}
 #popd
@@ -11,22 +11,22 @@ export VERSION=v0.12.1-bitcore-2
 #pushd gitian-builder
 #this repo may be out of date, leading to differences in digests of output artifacts
 #git pull origin master
-export URL=https://github.com/bitpay/bitcoin.git
-export COMMIT=v0.12.1-bitcore-2
+export URL=https://github.com/nadimkhan/saviour.git
+export COMMIT=v1.0.0.1
 
 #linux 32/64
-#cmd="./bin/gbuild --skip-image --allow-sudo --commit bitcoin=${COMMIT} --url bitcoin=${URL} ../bitcoin/contrib/gitian-descriptors/gitian-linux.yml"
+#cmd="./bin/gbuild --skip-image --allow-sudo --commit saviour=${COMMIT} --url saviour=${URL} ../saviour/contrib/gitian-descriptors/gitian-linux.yml"
 #echo $cmd
-./bin/gsign --signer $SIGNER --release ${VERSION}-linux --destination ../gitian.sigs/ ../bitcoin/contrib/gitian-descriptors/gitian-linux.yml
+./bin/gsign --signer $SIGNER --release ${VERSION}-linux --destination ../gitian.sigs/ ../saviour/contrib/gitian-descriptors/gitian-linux.yml
 
-mv build/out/bitcoin-*.tar.gz build/out/src/bitcoin-*.tar.gz ../
+mv build/out/saviour-*.tar.gz build/out/src/saviour-*.tar.gz ../
 
 
 #os x 64
-./bin/gbuild --commit bitcoin=${COMMIT} --url bitcoin=${URL} ../bitcoin/contrib/gitian-descriptors/gitian-osx.yml
-./bin/gsign --signer $SIGNER --release ${VERSION}-osx-unsigned --destination ../gitian.sigs/ ../bitcoin/contrib/gitian-descriptors/gitian-osx.yml
-mv build/out/bitcoin-*-osx-unsigned.tar.gz inputs/bitcoin-osx-unsigned.tar.gz
-mv build/out/bitcoin-*.tar.gz build/out/bitcoin-*.dmg ../
+./bin/gbuild --commit saviour=${COMMIT} --url saviour=${URL} ../saviour/contrib/gitian-descriptors/gitian-osx.yml
+./bin/gsign --signer $SIGNER --release ${VERSION}-osx-unsigned --destination ../gitian.sigs/ ../saviour/contrib/gitian-descriptors/gitian-osx.yml
+mv build/out/saviour-*-osx-unsigned.tar.gz inputs/saviour-osx-unsigned.tar.gz
+mv build/out/saviour-*.tar.gz build/out/saviour-*.dmg ../
 
 
 popd
